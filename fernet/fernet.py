@@ -6,38 +6,7 @@ from hashlib import sha256 as SHA256, pbkdf2_hmac
 import os
 import struct
 
-from pyaes import AESModeOfOperationCBC
-
-
-def pkcs7_decode(bytestring, k=16):
-    """
-    Remove the PKCS#7 padding from a text bytestring.
-    # @param bytestring    The padded bytestring for which the padding is to be
-    # removed.
-    # @param k             The padding block size.
-    # @exception ValueError Raised when the input padding is missing or
-    corrupt.
-    # @return bytestring    Original unpadded bytestring.
-    d
-    """
-
-    val = bytestring[-1]
-    if val > k:
-        raise ValueError('Input is not padded or padding is corrupt')
-    l = len(bytestring) - val
-    return bytestring[:l]
-
-
-def pkcs7_encode(bytestring, k=16):
-    """
-    Pad an input bytestring according to PKCS#7
-    # @param bytestring    The text to encode.
-    # @param k             The padding block size.
-    # @return bytestring    The padded bytestring.
-    """
-    l = len(bytestring)
-    val = k - (l % k)
-    return bytestring + bytearray([val] * val)
+from pyaes import AESModeOfOperationCBC, Encrypter
 
 
 class Fernet:
@@ -60,9 +29,10 @@ class Fernet:
         self._encrypt_from_parts(data, current_time, iv)
 
     def _encrypt_from_parts(self, data, current_time, iv):
-        padded_data = pkcs7_encode(data)
-        encryptor = AESModeOfOperationCBC(self._key, iv)
-        ciphertext = encryptor.encrypt(padded_data)
+        encrypter = Encrypter(AESModeOfOperationCBC(self._key, iv))
+        ciphertext = encrypter.feed(data)
+        ciphertext += encrypter.feed()
+
         basic_parts = (b"\x80" + struct.pack(">Q", current_time)
                        + iv + ciphertext)
 
@@ -77,38 +47,19 @@ class Fernet:
         pass
 
 
-def test_padding():
-    from cryptography.fernet import padding, algorithms
-    secret_message = b"Secret message!"
-
-    padded_data = pkcs7_encode(secret_message)
-
-    padder = padding.PKCS7(algorithms.AES.block_size).padder()
-    padded_data2 = padder.update(secret_message) + padder.finalize()
-
-    assert padded_data2 == padded_data
-
-    secret_message = b"lorem impsum doler"
-    padded_data = pkcs7_encode(secret_message)
-    padder = padding.PKCS7(algorithms.AES.block_size).padder()
-    padded_data2 = padder.update(secret_message) + padder.finalize()
-    assert padded_data2 == padded_data
-
-
 def test_aes():
     from cryptography.fernet import Cipher, modes
     from cryptography.fernet import padding, algorithms, default_backend
     from pyaes import AESModeOfOperationCBC
 
-    secret_message = b"Secret message!"
+    secret_message = (b"Secret message! AVERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRY"
+                      b"LLLLLLLLLLLLONG message")
     iv = os.urandom(16)
 
     key = pbkdf2_hmac('sha256', b'password', b'salt', 100000)
-    encryptor = AESModeOfOperationCBC(key, iv)
-
-    padded_data = pkcs7_encode(secret_message)
-    ciphertext2 = encryptor.encrypt(padded_data)
-
+    encrypter = Encrypter(AESModeOfOperationCBC(key, iv))
+    ciphertext2 = encrypter.feed(secret_message)
+    ciphertext2 += encrypter.feed()
     backend = default_backend()
     padder = padding.PKCS7(algorithms.AES.block_size).padder()
     padded_data = padder.update(secret_message) + padder.finalize()
@@ -183,7 +134,6 @@ def test_fernet():
     assert cipher == ccipher
 
 if __name__ == "__main__":
-    test_padding()
     test_aes()
     test_kdf()
     test_hmac()
