@@ -18,6 +18,8 @@ class Fernet:
             raise TypeError("key must be bytes.")
 
         self._key = key
+        key = base64.urlsafe_b64encode(key)
+        self._signing_key = key[:16]
 
     @classmethod
     def generate_key(cls):
@@ -36,11 +38,10 @@ class Fernet:
         basic_parts = (b"\x80" + struct.pack(">Q", current_time)
                        + iv + ciphertext)
 
-        key = self._key[:16]
-        hmac = HMAC.new(key, digestmod=SHA256)
+        hmac = HMAC.new(self._signing_key, digestmod='sha256')
         hmac.update(basic_parts)
-        hmac = hmac.digest()
-        return base64.urlsafe_b64encode(basic_parts + hmac)
+
+        return base64.urlsafe_b64encode(basic_parts + hmac.digest())
 
     def decrypt(self, cipher):
         # TODO: implement this ...
@@ -52,7 +53,7 @@ def test_aes():
     from cryptography.fernet import padding, algorithms, default_backend
     from pyaes import AESModeOfOperationCBC
 
-    secret_message = (b"Secret message! AVERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRY"
+    secret_message = (b"Secret message! A VERRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRY"
                       b"LLLLLLLLLLLLONG message")
     iv = os.urandom(16)
 
@@ -102,7 +103,8 @@ def test_hmac():
     basic_parts = (b"\x80" + struct.pack(">Q", current_time)
                    + iv + ciphertext)
 
-    hmac = HMAC.new(key[:16], digestmod=SHA256)
+    enc_key = base64.urlsafe_b64encode(key)
+    hmac = HMAC.new(enc_key[:16], digestmod=SHA256)
     hmac.update(basic_parts)
     hmac = hmac.digest()
 
@@ -110,7 +112,7 @@ def test_hmac():
     from cryptography.hazmat.primitives.hmac import HMAC as CHMAC
     from cryptography.hazmat.backends import default_backend
 
-    h = CHMAC(key[:16], hashes.SHA256(), backend=default_backend())
+    h = CHMAC(enc_key[:16], hashes.SHA256(), backend=default_backend())
     h.update(basic_parts)
     chmac = h.finalize()
     assert hmac == chmac
