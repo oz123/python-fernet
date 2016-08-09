@@ -66,7 +66,9 @@ class Fernet:
         basic_parts = (b"\x80" + struct.pack(">Q", current_time)
                        + iv + ciphertext)
 
-        hmac = HMAC.new(self._key[:16], ciphertext, SHA256)
+        key = self._key[:16]
+        hmac = HMAC.new(key, digestmod=SHA256)
+        hmac.update(basic_parts)
         hmac = hmac.digest()
         return base64.urlsafe_b64encode(basic_parts + hmac)
 
@@ -94,17 +96,19 @@ def test_padding():
 
 
 def test_aes():
+    from cryptography.fernet import Cipher, modes
+    from cryptography.fernet import padding, algorithms, default_backend
+    from pyaes import AESModeOfOperationCBC
+
     secret_message = b"Secret message!"
     iv = os.urandom(16)
 
     key = pbkdf2_hmac('sha256', b'password', b'salt', 100000)
-    padded_data = pkcs7_encode(secret_message)
-    from pyaes import AESModeOfOperationCBC
     encryptor = AESModeOfOperationCBC(key, iv)
+
+    padded_data = pkcs7_encode(secret_message)
     ciphertext2 = encryptor.encrypt(padded_data)
 
-    from cryptography.fernet import Cipher, modes
-    from cryptography.fernet import padding, algorithms, default_backend
     backend = default_backend()
     padder = padding.PKCS7(algorithms.AES.block_size).padder()
     padded_data = padder.update(secret_message) + padder.finalize()
@@ -138,6 +142,29 @@ def test_kdf():
     assert key2 == key
 
 
+def test_hmac():
+    current_time = int(time.time())
+    salt = os.urandom(16)
+    ciphertext = b'this is garbelled normally'
+    key = pbkdf2_hmac('sha256', b"password", salt, 100000)
+    iv = os.urandom(16)
+    basic_parts = (b"\x80" + struct.pack(">Q", current_time)
+                   + iv + ciphertext)
+
+    hmac = HMAC.new(key[:16], digestmod=SHA256)
+    hmac.update(basic_parts)
+    hmac = hmac.digest()
+
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.hmac import HMAC as CHMAC
+    from cryptography.hazmat.backends import default_backend
+
+    h = CHMAC(key[:16], hashes.SHA256(), backend=default_backend())
+    h.update(basic_parts)
+    chmac = h.finalize()
+    assert hmac == chmac
+
+
 def test_fernet():
     current_time = int(time.time())
     iv = os.urandom(16)
@@ -159,4 +186,5 @@ if __name__ == "__main__":
     test_padding()
     test_aes()
     test_kdf()
+    test_hmac()
     test_fernet()
