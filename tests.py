@@ -1,3 +1,8 @@
+"""
+Run this with py.test -vv tests.py
+"""
+
+
 import base64
 import hmac as HMAC
 import os
@@ -93,3 +98,4 @@ def test_fernet():
     fernet = Fernet(ckey)
     cipher = fernet._encrypt_from_parts(b"Secret message!", current_time, iv)
     assert cipher == ccipher
+    text = fernet.decrypt(cipher)
