@@ -17,9 +17,14 @@ class Fernet:
         if not isinstance(key, bytes):
             raise TypeError("key must be bytes.")
 
-        self._key = key
-        key = base64.urlsafe_b64encode(key)
+        key = base64.urlsafe_b64decode(key)
+        if len(key) != 32:
+            raise ValueError(
+                "Fernet key must be 32 url-safe base64-encoded bytes."
+            )
+
         self._signing_key = key[:16]
+        self._encryption_key = key[16:]
 
     @classmethod
     def generate_key(cls):
@@ -31,7 +36,7 @@ class Fernet:
         self._encrypt_from_parts(data, current_time, iv)
 
     def _encrypt_from_parts(self, data, current_time, iv):
-        encrypter = Encrypter(AESModeOfOperationCBC(self._key, iv))
+        encrypter = Encrypter(AESModeOfOperationCBC(self._encryption_key, iv))
         ciphertext = encrypter.feed(data)
         ciphertext += encrypter.feed()
 
@@ -124,15 +129,13 @@ def test_fernet():
     from cryptography.fernet import Fernet as CFernet
 
     salt = os.urandom(16)
-    key = pbkdf2_hmac('sha256', b"password", salt, 100000)
+    key = pbkdf2_hmac('sha256', b"password", salt, 100000, dklen=32)
     ckey = base64.urlsafe_b64encode(key)
     cfernet = CFernet(ckey)
     ccipher = cfernet._encrypt_from_parts(b"Secret message!", current_time, iv)
 
-    fernet = Fernet(key)
+    fernet = Fernet(ckey)
     cipher = fernet._encrypt_from_parts(b"Secret message!", current_time, iv)
-    print(cipher)
-    print(ccipher)
     assert cipher == ccipher
 
 if __name__ == "__main__":
