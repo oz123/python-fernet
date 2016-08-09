@@ -98,4 +98,7 @@ def test_fernet():
     fernet = Fernet(ckey)
     cipher = fernet._encrypt_from_parts(b"Secret message!", current_time, iv)
     assert cipher == ccipher
+    ctext = cfernet.decrypt(ccipher)
     text = fernet.decrypt(cipher)
+
+    assert ctext == text

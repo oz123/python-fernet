@@ -68,7 +68,7 @@ class Fernet:
         except (TypeError, binascii.Error):
             raise InvalidToken
 
-        if not data:
+        if not data or data[0] != 0x80:
             raise InvalidToken
 
         try:
@@ -84,17 +84,16 @@ class Fernet:
 
         h = HMAC.new(self._signing_key, digestmod='sha256')
         h.update(data[:-32])
-        import pdb; pdb.set_trace()
         if not HMAC.compare_digest(h.digest(), data[-32:]):
             raise InvalidToken
 
         iv = data[9:25]
         ciphertext = data[25:-32]
-        decryptor = Decrypter(AESModeOfOperationCBC(self._signing_key, iv))
+        decryptor = Decrypter(AESModeOfOperationCBC(self._encryption_key, iv))
         try:
             plaintext = decryptor.feed(ciphertext)
             plaintext += decryptor.feed()
-        except Exception:
+        except ValueError:
             raise InvalidToken
 
         return plaintext
