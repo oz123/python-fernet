@@ -38,12 +38,12 @@ class Fernet:
     def generate_key(cls):
         return base64.urlsafe_b64encode(os.urandom(32))
 
-    def encrypt(self, data) -> bytes:
+    def encrypt(self, data):
         current_time = int(time.time())
         iv = os.urandom(16)
         return self._encrypt_from_parts(data, current_time, iv)
 
-    def _encrypt_from_parts(self, data, current_time, iv) -> bytes:
+    def _encrypt_from_parts(self, data, current_time, iv):
         encrypter = Encrypter(AESModeOfOperationCBC(self._encryption_key, iv))
         ciphertext = encrypter.feed(data)
         ciphertext += encrypter.feed()
@@ -55,7 +55,7 @@ class Fernet:
 
         return base64.urlsafe_b64encode(basic_parts + hmactext.digest())
 
-    def decrypt(self, token, ttl=None) -> bytes:
+    def decrypt(self, token, ttl=None):
         if not isinstance(token, bytes):
             raise TypeError("token must be bytes.")
 
