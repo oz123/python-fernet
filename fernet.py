@@ -23,6 +23,10 @@ class InvalidSignature(Exception):
 
 
 class Fernet:
+    """
+    Pure python Ferent module
+    see https://github.com/fernet/spec/blob/master/Spec.md
+    """
     def __init__(self, key):
         if not isinstance(key, bytes):
             raise TypeError("key must be bytes.")
