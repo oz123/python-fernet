@@ -1,12 +1,16 @@
 import base64
 import binascii
-import hmac as HMAC
+import hmac
 import time
 import os
 import struct
-
 from pyaes import AESModeOfOperationCBC, Encrypter, Decrypter
 
+__all__ = [
+    "InvalidSignature",
+    "InvalidToken",
+    "Fernet"
+]
 _MAX_CLOCK_SKEW = 60
 
 
@@ -19,7 +23,8 @@ class InvalidSignature(Exception):
 
 
 class Fernet:
-    """Pure python Ferent module
+    """
+    Pure python Ferent module
     see https://github.com/fernet/spec/blob/master/Spec.md
     """
     def __init__(self, key):
@@ -28,9 +33,7 @@ class Fernet:
 
         key = base64.urlsafe_b64decode(key)
         if len(key) != 32:
-            raise ValueError(
-                "Fernet key must be 32 url-safe base64-encoded bytes."
-            )
+            raise ValueError("Fernet key must be 32 url-safe base64-encoded bytes.")
 
         self._signing_key = key[:16]
         self._encryption_key = key[16:]
@@ -42,20 +45,19 @@ class Fernet:
     def encrypt(self, data):
         current_time = int(time.time())
         iv = os.urandom(16)
-        self._encrypt_from_parts(data, current_time, iv)
+        return self._encrypt_from_parts(data, current_time, iv)
 
     def _encrypt_from_parts(self, data, current_time, iv):
         encrypter = Encrypter(AESModeOfOperationCBC(self._encryption_key, iv))
         ciphertext = encrypter.feed(data)
         ciphertext += encrypter.feed()
 
-        basic_parts = (b"\x80" + struct.pack(">Q", current_time)
-                       + iv + ciphertext)
+        basic_parts = (b"\x80" + struct.pack(">Q", current_time) + iv + ciphertext)
 
-        hmac = HMAC.new(self._signing_key, digestmod='sha256')
-        hmac.update(basic_parts)
+        hmactext = hmac.new(self._signing_key, digestmod='sha256')
+        hmactext.update(basic_parts)
 
-        return base64.urlsafe_b64encode(basic_parts + hmac.digest())
+        return base64.urlsafe_b64encode(basic_parts + hmactext.digest())
 
     def decrypt(self, token, ttl=None):
         if not isinstance(token, bytes):
@@ -82,9 +84,9 @@ class Fernet:
             if current_time + _MAX_CLOCK_SKEW < timestamp:
                 raise InvalidToken
 
-        h = HMAC.new(self._signing_key, digestmod='sha256')
-        h.update(data[:-32])
-        if not HMAC.compare_digest(h.digest(), data[-32:]):
+        hmactext = hmac.new(self._signing_key, digestmod='sha256')
+        hmactext.update(data[:-32])
+        if not hmac.compare_digest(hmactext.digest(), data[-32:]):
             raise InvalidToken
 
         iv = data[9:25]
