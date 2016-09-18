@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='fernet',
-      version=0.1,
+      version='1.0.1',
       description='A simple python fernet implementation',
       author='Oz N Tiram',
       author_email='oz.tiram@gmail.com',
